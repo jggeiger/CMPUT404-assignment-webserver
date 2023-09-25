@@ -32,7 +32,85 @@ class MyWebServer(socketserver.BaseRequestHandler):
     def handle(self):
         self.data = self.request.recv(1024).strip()
         print ("Got a request of: %s\n" % self.data)
-        self.request.sendall(bytearray("OK",'utf-8'))
+
+        #Get method and path
+        method, requestPath = self.data.split()[0], self.data.split()[1]
+        print("Path: ", requestPath)
+
+        #Don't allow exiting www
+        if(b"/.." not in requestPath):
+
+            #Check proper method
+            if (method == b"GET"):
+
+                try:
+
+                    #If directory requested
+                    if (requestPath.endswith(b'/')):
+
+                        #Read directory index.html
+                        fileData = open("www" + requestPath.decode("UTF-8") + "index.html", 'r')
+                        outputData = fileData.read()
+                        fileData.close()
+
+                        #Build response
+                        response = 'HTTP/1.1 200 OK\nContent-Type: text/html\nConnection: Closed\n\n' + outputData
+
+                    #If file requested
+                    else:
+
+                        if b'.html' in requestPath:
+
+                            #Read path
+                            fileData = open("www" + requestPath.decode("UTF-8"), 'r')
+                            outputData = fileData.read()
+                            fileData.close()
+
+                            response = 'HTTP/1.1 200 OK\nContent-Type: text/html\nConnection: Closed\n\n' + outputData
+
+                        elif b'.css' in requestPath:
+
+                            #Read path
+                            fileData = open("www" + requestPath.decode("UTF-8"), 'r')
+                            outputData = fileData.read()
+                            fileData.close()
+
+                            response = 'HTTP/1.1 200 OK\nContent-Type: text/css\nConnection: Closed\n\n' + outputData
+
+                        #If something besides a directory or file is requested
+                        else:
+
+                            #Check for redirect
+                            if (requestPath == b"/deep"):
+                                
+                                response = 'HTTP/1.1 301 Moved Permanently\nLocation: /deep/\nConnection: Closed\n\n'
+
+                            else:
+                                
+                                #Something strange, try to read path
+                                fileData = open("www" + requestPath.decode("UTF-8"), 'r')
+                                outputData = fileData.read()
+                                fileData.close()
+
+                                response = 'HTTP/1.1 200 OK\nConnection: Closed\n\n' + outputData
+
+
+                except IOError as e:
+
+                    print(e)
+                    response = 'HTTP/1.1 404 Not Found\nContent-Type: text/html\nConnection: Closed\n\n<html><head></head><body><h1>404 Not Found</h1></body></html>'
+
+            else:
+
+                response = 'HTTP/1.1 405 Method Not Allowed\n\n<html><head></head><body><h1>405 Method Not Allowed</h1></body></html>'
+
+        else:
+
+            response = 'HTTP/1.1 404 Not Found\n\n'
+
+        #Display response and send
+        print("Sending Response: ", response)
+        self.request.sendall(bytearray(response,'utf-8'))
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
