@@ -1,5 +1,6 @@
 #  coding: utf-8 
 import socketserver
+import os.path as path
 
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos
 # 
@@ -35,65 +36,60 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
         #Get method and path
         method, requestPath = self.data.split()[0], self.data.split()[1]
+
         print("Path: ", requestPath)
 
-        #Don't allow exiting www
-        if(b"/.." not in requestPath):
+        #Normalize Path and append www
+        normalizedPath = b'www' + path.normpath(requestPath)
+            
+        print("Norm Path: ", normalizedPath)
 
-            #Check proper method
+        #Check for redirect
+        if (not (requestPath.endswith(b'/')) and not path.isfile(normalizedPath)):
+                                
+            location = requestPath.decode('utf-8') + '/'
+            print("Location: ", location)
+            response = 'HTTP/1.1 301 Moved Permanently\nLocation: ' + location + '\nConnection: Closed\n\n'
+
+        else:
+
+            #Check method
             if (method == b"GET"):
 
                 try:
-
-                    #If directory requested
-                    if (requestPath.endswith(b'/')):
+                    
+                    if (path.isdir(normalizedPath)):
 
                         #Read directory index.html
-                        fileData = open("www" + requestPath.decode("UTF-8") + "index.html", 'r')
+                        fileData = open(normalizedPath.decode("UTF-8") + "/index.html", 'r')
                         outputData = fileData.read()
                         fileData.close()
 
                         #Build response
                         response = 'HTTP/1.1 200 OK\nContent-Type: text/html\nConnection: Closed\n\n' + outputData
 
-                    #If file requested
-                    else:
+                    elif (path.isfile(normalizedPath)):
 
-                        if b'.html' in requestPath:
+                        #Read path
+                        fileData = open(normalizedPath.decode("UTF-8"), 'r')
+                        outputData = fileData.read()
+                        fileData.close()
 
-                            #Read path
-                            fileData = open("www" + requestPath.decode("UTF-8"), 'r')
-                            outputData = fileData.read()
-                            fileData.close()
+                        if normalizedPath.endswith(b'.html'):
 
                             response = 'HTTP/1.1 200 OK\nContent-Type: text/html\nConnection: Closed\n\n' + outputData
 
-                        elif b'.css' in requestPath:
-
-                            #Read path
-                            fileData = open("www" + requestPath.decode("UTF-8"), 'r')
-                            outputData = fileData.read()
-                            fileData.close()
+                        elif normalizedPath.endswith(b'.css'):
 
                             response = 'HTTP/1.1 200 OK\nContent-Type: text/css\nConnection: Closed\n\n' + outputData
 
-                        #If something besides a directory or file is requested
                         else:
 
-                            #Check for redirect
-                            if (requestPath == b"/deep"):
-                                
-                                response = 'HTTP/1.1 301 Moved Permanently\nLocation: /deep/\nConnection: Closed\n\n'
+                            raise IOError("Unknown file type requested")
 
-                            else:
-                                
-                                #Something strange, try to read path
-                                fileData = open("www" + requestPath.decode("UTF-8"), 'r')
-                                outputData = fileData.read()
-                                fileData.close()
+                    else:
 
-                                response = 'HTTP/1.1 200 OK\nConnection: Closed\n\n' + outputData
-
+                        raise IOError('Unknown path requested')
 
                 except IOError as e:
 
@@ -103,10 +99,6 @@ class MyWebServer(socketserver.BaseRequestHandler):
             else:
 
                 response = 'HTTP/1.1 405 Method Not Allowed\n\n<html><head></head><body><h1>405 Method Not Allowed</h1></body></html>'
-
-        else:
-
-            response = 'HTTP/1.1 404 Not Found\n\n'
 
         #Display response and send
         print("Sending Response: ", response)
